@@ -1,0 +1,143 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+SA&O_Ass_I.py
+
+Purpose:
+    This script intends to simulate the number of COVID-19 infected patients 
+    that require treatment at the intensive care on the intensive care. All 
+    inputs, outputs and returns are measured on a daily base.
+    
+Notes: 
+    - dR might be defined itself, but as well constructe from dP and dC. 
+    - do not consider iNTotal (17 mln), but dK (uninfected at t=0) instead.
+    - PROBLEM: 
+    
+Version:
+    0   
+    
+Date:
+    2020/03/08
+
+Author:
+    Stan Thijssen 
+"""
+##############################################################################
+### Imports
+#import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from datetime import datetime
+
+##############################################################################
+### Functions
+
+def fIDot(iK, dA, dR, vT): 
+    """
+    Purpose:
+        This function calculates the changing daily number of new infections.
+    
+    Inputs:
+        iK:    integer, total number of people (uninfected) in population at t=0
+        dA:    double, ratio of uninfected over infected at t = 0
+        dR:    double, reproduction factor
+        vT:    vector, time span
+        
+    Return: 
+        vIDot: vector, length as vT, expected number of new infections at t=t
+    """    
+    
+    vIDot = (dA * iK * dR * np.exp(-dR * vT)) / ((1 + dA * np.exp(-dR *  vT)) ** 2) 
+    
+    return(vIDot)
+
+def fSimulate(dR, iN0, iK, iT):
+    """
+    Purpose:
+        This function simulates the arrivals of COVID patients that require
+        treatment at the intensive care. All inputs, outputs and returns are 
+        measured on a daily base.
+    
+    Inputs:
+        dC:     double, (expected) number of (uninfected) contacts
+        dP:     double, probability that a person infects another (uninfected)
+        dR:     double, reproduction factor
+        iT:     integer, time horizon for simulation
+    
+    Outputs: 
+        dDT:    double, doubling time [not yet required]
+        dA:     double, ratio of uninfected over infected at t = 0
+        vT:     vector, time span
+        vIDot:  vector, expected number of new infections (changes over time)
+        
+    Return: 
+        vA:     vector, with arrival times
+        
+    """
+    #dDT = 2 * np.log(2) / dR
+    dA = (iK - iN0) / iN0
+    vT = np.linspace(1, iT, iT)
+    vIDot = fIDot(iK = iK, dA = dA, dR = dR, vT = vT)
+    vI = iK / (1 + dA * np.exp(-dR * vT))
+    t = 0
+    dDaily = 0
+    vA = []
+    vDaily = []
+    while t < iT:
+        tInd = int(np.floor(t))
+        vA.append(float(t + np.random.exponential(1 / vIDot[tInd],1)))
+        dDaily += 1
+        if np.floor(vA[-1]) - tInd > 0:
+            print(t)
+            # store total number of new ICU patients per day
+            vDaily.append(dDaily)
+            dDaily = 0
+        t = vA[-1]
+
+    return (vA, vI, vIDot, vDaily)
+
+##############################################################################
+### main
+def main():
+    #print("\033[H\033[J")
+    ##########################################################################
+    # Magic numbers
+    #dC = 10 # person gets in contact with dC [uninfected] individuals each day
+    #dP = 0.33 # probability that a person infects another [uninfected]
+    dR = 0.1 # number of new infections an infected person causes
+    iN0 = 1000000 # number of infected people at t = 0
+    iK = 17000000 # total number of people (uninfected) in population at t=0
+    iT = 60 # time horizon to simulate over
+    
+    ##########################################################################
+    # Initialisation 
+    tStart = datetime.now()
+    vA, vI, vIDot, vDaily = fSimulate(dR = dR, iN0 = iN0, iK = iK, iT = iT)
+    vADiff = np.diff(vA, n =1)
+    
+    # Plot daily number of cases
+    plt.figure()
+    plt.plot(vDaily)
+    # Plot interarrival times
+    plt.figure()
+    plt.plot(vADiff)
+    # Plot (theoretical) expected number of predictions
+    plt.figure()
+    plt.plot(vI)
+    # Plot (theoretical) daily change in expected number of predictions
+    plt.figure()
+    plt.plot(vIDot)
+    # Check time
+    tEnd = datetime.now()
+    print('Running time', tEnd - tStart)
+    
+    
+    
+        
+##############################################################################
+### start main
+
+
+main()
+if __name__ == "__main__":
+    main()
