@@ -26,14 +26,18 @@ def select_upcoming_event(dict_active_events):
 
     """
     
+    # save here the upcoming
     upcoming_event_time = float("inf")
     upcoming_event = list(dict_active_events.keys())[0]
     
+    # go through events in the dict
     for event in dict_active_events:
         
+        # save the nearest time
         times_event = dict_active_events[event]
         nearest_time_event_type = min(times_event)
         
+        # if earlier than previously saved, make this the upcoming
         if nearest_time_event_type <  upcoming_event_time:
             upcoming_event = event
             upcoming_event_time = nearest_time_event_type
@@ -116,8 +120,12 @@ def simulate_system_day(arrival_times, current_ICU_capacity, total_ICU_capacity,
     # get arrivals 
     active_events['A'] = arrival_times
     
+    # keep true while simulation ongoing
+    simulate_day = True
+    
     # go over each arrival
-    while current_time < 1:
+    while simulate_day:
+        
                 
         if not active_events['A'] and not active_events['D']:
             break 
@@ -132,64 +140,63 @@ def simulate_system_day(arrival_times, current_ICU_capacity, total_ICU_capacity,
         # sort the departure times
         active_events['D'] = sorted(active_events['D'])
         
-        # get the event time and remove it from the dict    
-        upcoming_event_time = active_events[upcoming_event].pop(0)
         
-        
-        # if the upcoming event is an arrival
-        if upcoming_event == 'A':
-        
-            # if there is currently capacity; admit to ICU capacity
-            if current_ICU_capacity <= total_ICU_capacity:
-                
-                # add tot variable which saves current icu capacity
-                current_ICU_capacity += 1
-                
-                # save that a patient has been saved to the hospital
-                total_admitted_hospital += 1
-                
-                # generate a time when this patient will depart
-                time_in_ICU = sample_patient_ICU_time(shape_ICU_time, scale_ICU_time)
-                time_departure = upcoming_event_time + time_in_ICU
-                
-                # add departure to active events
-                active_events['D'].append(time_departure)
+        # if the upcoming event is past the day, stop the while loop
+        if  active_events[upcoming_event][0] >= 1:
+            simulate_day = False
+        # otherwise continue simulating
+        else:
             
-            # the patient is rejected from the ICU;
-            elif current_ICU_capacity > total_ICU_capacity:
+            # get the event time and remove it from the dict    
+            upcoming_event_time = active_events[upcoming_event].pop(0)
+            
+            # if the upcoming event is an arrival
+            if upcoming_event == 'A':
+            
+                # if there is currently capacity; admit to ICU capacity
+                if current_ICU_capacity < total_ICU_capacity:
+                    
+                    # add tot variable which saves current icu capacity
+                    current_ICU_capacity += 1
+                    
+                    # save that a patient has been saved to the hospital
+                    total_admitted_hospital += 1
+                    
+                    # generate a time when this patient will depart
+                    time_in_ICU = sample_patient_ICU_time(shape_ICU_time, scale_ICU_time)
+                    time_departure = upcoming_event_time + time_in_ICU
+                    
+                    # add departure to active events
+                    active_events['D'].append(time_departure)
                 
-                # add that rejected from hospital
-                total_rejected_hospital += 1
+                # the patient is rejected from the ICU;
+                elif current_ICU_capacity >= total_ICU_capacity:
+                    
+                    # add that rejected from hospital
+                    total_rejected_hospital += 1
+                    
+                    # draw random uniform number between 0 and 1
+                    u = np.random.random()
+                    
+                    # if below the probability of dying, add one to death count
+                    if u < prob_death_rej:
+                        total_deaths_after_rejection += 1
+            
+            # if a patient departs
+            elif upcoming_event == 'D':
                 
-                # draw random uniform number between 0 and 1
+                # remove a person from the ICU
+                current_ICU_capacity -= 1
+                
+                # draw a random number
                 u = np.random.random()
                 
-                # if below the probability of dying, add one to death count
-                if u < prob_death_rej:
-                    total_deaths_after_rejection += 1
-        
-        # if a patient departs
-        elif upcoming_event == 'D':
-            
-            
-            print("patient removed from ICU at this time:  ", upcoming_event_time )
-            
-            # remove a person from the ICU
-            current_ICU_capacity -= 1
-            
-            # draw a random number
-            u = np.random.random()
-            
-            if u < prob_death_adm:
-                total_deaths_after_admission += 1
-        
-        print("current time is: ", current_time)
-        # update the current time
-        current_time += upcoming_event_time
+                if u < prob_death_adm:
+                    total_deaths_after_admission += 1
     
     # save events that remain active
     remaining_active_departures = active_events['D']
-    
+        
     # how many died after admission and rejection
     total_deaths_today = total_deaths_after_admission + total_deaths_after_rejection
     
@@ -257,10 +264,11 @@ def simulate_system_T_days(T,starting_ICU_capacity, total_ICU_capacity, prob_dea
         indeces_day = np.where(which_day_arrival == i_day)
         arrival_times_day = list(arrival_times_days[indeces_day] - i_day)
         
+        print(len(arrival_times_day))
+
         
         result = simulate_system_day(arrival_times_day, ICU_capacity_today, total_ICU_capacity, prob_death_adm, prob_death_rej,shape_ICU_time, scale_ICU_time,active_events,hours_day = 24)
         
-        print("Total entered system: ", len(arrival_times_days[indeces_day]) )
         print("Deaths today: ",result['total_death'])
         print("Deaths after admission: ", result['total_death_after_admission'])
         print("Deaths after rejection: ", result['total_death_after_rejection'])
@@ -321,6 +329,3 @@ simulate_system_T_days(n_days,
 
 
 
-t_dict = {'A': [0.1,0.2,0.3], 'D':[2.3]}
-
-select_upcoming_event(t_dict)
