@@ -8,7 +8,7 @@ Created on Wed Mar 31 09:51:59 2021
 
 import numpy as np
 from generate_arrivals import simulate_arrivals
-
+import matplotlib.pyplot as plt 
 
 def select_upcoming_event(dict_active_events):
     """
@@ -245,8 +245,11 @@ def simulate_system_T_days(T,starting_ICU_capacity, total_ICU_capacity, prob_dea
     """
     
     
-    # total deaths at start of the sim
-    total_deaths_sim = 0
+    # save several parameters; how many death per day, how many arrived
+    total_deaths_sim = np.zeros(T)
+    total_deaths_after_admission_sim = np.zeros(T)
+    total_deaths_after_rejection_sim = np.zeros(T)
+    arrived_today = np.zeros(T)
     
     # update with each day - how much icu capacity is taken?
     ICU_capacity_today = starting_ICU_capacity
@@ -255,41 +258,54 @@ def simulate_system_T_days(T,starting_ICU_capacity, total_ICU_capacity, prob_dea
     arrival_times_days = np.array(simulate_arrivals(R, N0, K, T))
     which_day_arrival = np.array(list((map(int,arrival_times_days))))
     
+    # initialy have no active events
     active_events = None
     
-
+    
+    # loop through the days
     for i_day in range(0, T):
         
         # get the arrival times for a particular day
         indeces_day = np.where(which_day_arrival == i_day)
         arrival_times_day = list(arrival_times_days[indeces_day] - i_day)
         
-        print(len(arrival_times_day))
-
+        # get how many arrived, and save
+        total_arrived_today = len(arrival_times_day)
+        arrived_today[i_day] = total_arrived_today
         
+        # get results for a day
         result = simulate_system_day(arrival_times_day, ICU_capacity_today, total_ICU_capacity, prob_death_adm, prob_death_rej,shape_ICU_time, scale_ICU_time,active_events,hours_day = 24)
         
+        # print results for checking
         print("Deaths today: ",result['total_death'])
-        print("Deaths after admission: ", result['total_death_after_admission'])
-        print("Deaths after rejection: ", result['total_death_after_rejection'])
-        print("Total admitted hospital: ", result['total_admitted_hospital'])
-        print("Total rejected hospital: ", result['total_rejected_hospital'])
+        print("Deaths today after admission: ", result['total_death_after_admission'])
+        print("Deaths today after rejection: ", result['total_death_after_rejection'])
+        print("Total today admitted hospital: ", result['total_admitted_hospital'])
+        print("Total today rejected hospital: ", result['total_rejected_hospital'])
         print("Current ICU capacity: ", result['current_ICU_capacity'])
-        print("Active departures: ", sorted(result['current_active_departures']))
         
+        # update the active vents for the next iteration
         active_events = {'A': [], 'D':list(np.array(result['current_active_departures']) - (i_day+1)) }
         
+        # updat ICU capacity for the next iteration
+        ICU_capacity_today = result['current_ICU_capacity']
+        
+        # update the relevant statistics
+        total_deaths_sim[i_day] = result['total_death']
+        total_deaths_after_admission_sim[i_day] = result['total_death_after_admission']
+        total_deaths_after_rejection_sim[i_day] = result['total_death_after_rejection']
+
+    
+    results = {'total_death': total_deaths_sim,
+               'total_death_after_admission': total_deaths_after_admission_sim,
+               'total_death_after_rejection': total_deaths_after_rejection_sim,
+               'arrivals_per_day': arrived_today}
         
         
-        
-        
-        
+    return results
     
     
     
-    #total_deaths, ICU_capacity = simulate_system_day(arrival_times_days, starting_ICU_capacity, total_ICU_capacity, prob_death_adm, prob_death_rej,shape_ICU_time, scale_ICU_time ,hours_day = 24)
-    
-    #return total_deaths, ICU_capacity
     
    
                       
@@ -305,18 +321,20 @@ shape_gamma_ICU = 1.66
 scale_gamma_ICU = 1/0.206
 prob_death_adm = 0.5
 prob_death_rej = 0.9
-starting_ICU_capacity = 100
-total_ICU_capacity = 120
+
+# the following is based on RIVM capacity 
+starting_ICU_capacity = 865
+total_ICU_capacity = 1150
 R = 0.1
 N0 = 1000 # number of infected people at t = 0
 K = 17000000 # total number of people (uninfected) in population at t=0
 
-n_days = 3
+n_days = 30
 
 
 
 
-simulate_system_T_days(n_days,
+result_sim = simulate_system_T_days(n_days,
                            starting_ICU_capacity, 
                            total_ICU_capacity, 
                            prob_death_adm, 
@@ -328,4 +346,12 @@ simulate_system_T_days(n_days,
                            K)
 
 
+# plot the arrivals 
+plt.plot(range(1,n_days+1), result_sim['arrivals_per_day'])
+
+
+plt.plot(range(1,n_days+1), result_sim['total_death'], label = 'total death')
+plt.plot(range(1,n_days+1), result_sim['total_death_after_admission'], label = 'death after admission')
+plt.plot(range(1,n_days+1), result_sim['total_death_after_rejection'], label = 'death after rejection')
+plt.legend('upper-left')
 
