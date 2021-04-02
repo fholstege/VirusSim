@@ -325,11 +325,22 @@ prob_death_rej = 0.9
 # the following is based on RIVM capacity 
 starting_ICU_capacity = 865
 total_ICU_capacity = 1150
-R = 0.1
-N0 = 1000 # number of infected people at t = 0
-K = 17000000 # total number of people (uninfected) in population at t=0
+N0 = 7000 * 7 # number of infected people at t = 0 - approx. number of cases in last two weeks
 
-n_days = 30
+population = 17500000
+already_infected = 1250000
+vaccinated = 2500000
+K = population - already_infected - vaccinated # total number of people (uninfected) in population at t=0
+
+
+R = 1.07
+T_c = 4
+perc_ICU = 0.05
+
+r = ((R -1) /T_c) * perc_ICU
+
+
+n_days = 100
 
 
 
@@ -341,17 +352,18 @@ result_sim = simulate_system_T_days(n_days,
                            prob_death_rej,
                            shape_gamma_ICU, 
                            scale_gamma_ICU,
-                           R,
+                           r,
                            N0,
                            K)
 
 
 # plot the arrivals 
-plt.plot(range(1,n_days+1), result_sim['arrivals_per_day'])
+plt.plot(range(1,n_days+1), result_sim['arrivals_per_day'], label = 'Daily New Arrivals at ICU')
+plt.legend()
 
-
-plt.plot(range(1,n_days+1), result_sim['total_death'], label = 'total death')
-plt.plot(range(1,n_days+1), result_sim['total_death_after_admission'], label = 'death after admission')
-plt.plot(range(1,n_days+1), result_sim['total_death_after_rejection'], label = 'death after rejection')
-plt.legend('upper-left')
+# plot the deaths
+plt.plot(range(1,n_days+1), result_sim['total_death'], label = 'Total death')
+plt.plot(range(1,n_days+1), result_sim['total_death_after_admission'], label = 'Death after admission')
+plt.plot(range(1,n_days+1), result_sim['total_death_after_rejection'], label = 'Death after rejection')
+plt.legend()
 
