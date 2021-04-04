@@ -19,14 +19,20 @@ import string
 import matplotlib.pyplot as plt
 from sklearn.model_selection import ParameterGrid
 from scipy.stats import beta as beta_distribution
+import scipy.stats as stats    
 
 
 # create instance of class
 t = TicToc() 
 
-## First parameters: probability of death after admission and rejection        
+## First parameters: probability of death after admission and rejection  
+# taken from: https://stichting-nice.nl/covid-19-op-de-ic.jsp, first of april
+total_death_after_ICU = 6128
+total_alive_after_ICU = 2778
+total_alive_after_ICU_but_in_hospital = 384
+prob_death_adm = total_death_after_ICU/(total_death_after_ICU + total_alive_after_ICU + total_alive_after_ICU_but_in_hospital)
+
 # based on the following paper: page 4 of https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7341703/pdf/10729_2020_Article_9511.pdf
-prob_death_adm = 0.5
 prob_death_rej = 0.9
 
 # Second set: how much people currently in the ICU (starting), how many currently infected, how many could be in total,  the K (how many people can be infected)
@@ -63,8 +69,31 @@ r_high = (R_high - 1)/T_c
 iICUCapacitySQ = 1150                               # FIND OUT
 iICUCapacityHigh = 1300                             # FIND OUT
 
+
+# get data on ICU stay
+data_ICU_stay = pd.read_excel('raw_IC_data.xlsx')
+
+# save here the data
+distribution_ICU_stay = []
+
+# generate the data for the distribution
+for index, row in data_ICU_stay.iterrows():
+    
+    n_patients = row['n_patients']
+    days_ICU = row['days_ICU']
+    
+    data_to_add = n_patients * [days_ICU]
+    
+    distribution_ICU_stay.append(data_to_add)
+ 
+# flatten list of lists
+distribution_ICU_stay=  [val for sublist in distribution_ICU_stay for val in sublist]
+
+# get distributions based on the historical data
+alpha, beta, loc, scale = beta_distribution.fit(distribution_ICU_stay)
+
 # get parameters for the beta distribution, gamma distribution
-param_ICU_time_beta = {'mean': 17.4, 'var': 14.6**2, 'min': 1, 'max': 80}
+param_ICU_time_beta = {'alpha': alpha, 'beta': beta, 'loc': loc, 'scale': scale}
 param_ICU_time_gamma = {'scale': 1.66 , 'shape': 1/0.206}
 
 # how many sims,for how many days

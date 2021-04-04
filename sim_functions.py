@@ -68,7 +68,7 @@ def sample_patient_ICU_time_gamma(shape, scale):
     return sample
 
 
-def sample_patient_ICU_time_Beta(mean, var, min_distribution, max_distribution):
+def sample_patient_ICU_time_Beta(alpha, beta, loc, scale):
     """
     
 
@@ -90,21 +90,9 @@ def sample_patient_ICU_time_Beta(mean, var, min_distribution, max_distribution):
 
     """
     
-    def min_max_scaled(x, min_d, max_d):
-    
-        scaled = (x - min_d)/(max_d - min_d)
-        return(scaled)
 
-    # scale with mean max
-    mu_scaled = min_max_scaled(mean, min_distribution, max_distribution)
-    var_scaled = min_max_scaled(var, min_distribution, max_distribution)
-    
-    # define alpha, beta
-    alpha = (mu_scaled * (var_scaled **2 + mu_scaled ** 2 - mu_scaled))/var_scaled
-    beta = ((var_scaled **2 + mu_scaled ** 2 - mu_scaled)*(1- mu_scaled))/var_scaled
-    
     # get sample
-    sample = beta_distribution.rvs(a=alpha,b=beta,size = 1, loc = min_distribution, scale = max_distribution)
+    sample = beta_distribution.rvs(a=alpha,b=beta,size = 1, loc = loc, scale = scale)
     
     return sample
     
@@ -211,8 +199,8 @@ def simulate_system_day(arrival_times, current_ICU_capacity, total_ICU_capacity,
                     if ICU_time_distribution == 'gamma':
                         time_in_ICU = sample_patient_ICU_time_gamma(param_ICU_time_dict['scale'], param_ICU_time_dict['shape'])
                     elif ICU_time_distribution == 'beta':
-                        time_in_ICU = sample_patient_ICU_time_Beta(mean= param_ICU_time_dict['mean'], var=param_ICU_time_dict['var'],
-                                                               min_distribution=param_ICU_time_dict['min'], max_distribution=param_ICU_time_dict['max'])
+                        time_in_ICU = sample_patient_ICU_time_Beta(mean= param_ICU_time_dict['alpha'], var=param_ICU_time_dict['beta'],
+                                                               min_distribution=param_ICU_time_dict['loc'], max_distribution=param_ICU_time_dict['scale'])
                     
                     
                     time_departure = upcoming_event_time + time_in_ICU
