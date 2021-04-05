@@ -97,7 +97,7 @@ def sample_patient_ICU_time_Beta(alpha, beta, loc, scale):
     return sample
     
 
-def simulate_system_day(arrival_times, current_ICU_capacity, total_ICU_capacity, prob_death_adm, prob_death_rej, param_ICU_time_dict ,ICU_time_distribution = 'beta',active_events = None,hours_day = 24):
+def simulate_system_day(arrival_times, current_ICU_capacity, total_ICU_capacity, prob_death_adm, prob_death_rej, param_ICU_time_dict, param_ageGroup_dict, ICU_time_distribution = 'beta',active_events = None,hours_day = 24):
     """
     
 
@@ -202,7 +202,7 @@ def simulate_system_day(arrival_times, current_ICU_capacity, total_ICU_capacity,
                         time_in_ICU = sample_patient_ICU_time_Beta(mean= param_ICU_time_dict['alpha'], var=param_ICU_time_dict['beta'],
                                                                min_distribution=param_ICU_time_dict['loc'], max_distribution=param_ICU_time_dict['scale'])
                     
-                    
+                    # define moment of departure of this event
                     time_departure = upcoming_event_time + time_in_ICU
                     
                     # add departure to active events
@@ -217,6 +217,7 @@ def simulate_system_day(arrival_times, current_ICU_capacity, total_ICU_capacity,
                     # draw random uniform number between 0 and 1
                     u = np.random.random()
                     
+                    
                     # if below the probability of dying, add one to death count
                     if u < prob_death_rej:
                         total_deaths_after_rejection += 1
@@ -228,9 +229,24 @@ def simulate_system_day(arrival_times, current_ICU_capacity, total_ICU_capacity,
                 current_ICU_capacity -= 1
                 
                 # draw a random number
-                u = np.random.random()
+                u_1 = np.random.random()
                 
-                if u < prob_death_adm:
+                # if want to split at the age of 60
+                if param_ageGroup_dict['split_at_60']:
+                    
+                    # generate another random number
+                    u_2 = np.random.random()
+                    
+                    # if a patient below 60
+                    if u_2 < param_ageGroup_dict['perc_patients_below_60_ICU']:
+                    
+                    # use a particular probability of death based on which group it is
+                        prob_death_adm = param_ageGroup_dict['prob_death_adm_below_60']
+                    else:
+                        prob_death_adm = param_ageGroup_dict['prob_death_adm_above_60']
+                    
+                # check if would have died after admission
+                if u_1 < prob_death_adm:
                     total_deaths_after_admission += 1
     
     # save events that remain active
@@ -249,7 +265,7 @@ def simulate_system_day(arrival_times, current_ICU_capacity, total_ICU_capacity,
             
     return dict_results
 
-def simulate_system_T_days(T,starting_ICU_capacity, total_ICU_capacity, prob_death_adm, prob_death_rej,param_ICU_time_dict,r,N0,K):
+def simulate_system_T_days(T,starting_ICU_capacity, total_ICU_capacity, prob_death_adm, prob_death_rej, param_ICU_time_dict, param_ageGroup_dict, r, N0, K):
     """
     
 
@@ -293,6 +309,27 @@ def simulate_system_T_days(T,starting_ICU_capacity, total_ICU_capacity, prob_dea
     # update with each day - how much icu capacity is taken?
     ICU_capacity_today = starting_ICU_capacity
     
+    
+    # check if want to split at age of 60
+    if param_ageGroup_dict['split_at_60']:
+        
+        # define the ICU rate for below and above 60
+        icu_rate_below_60 = param_ageGroup_dict['ICU_rate_below_60']
+        icu_rate_above_60 = param_ageGroup_dict['ICU_rate_above_60']
+        
+        # using the percentage of people below 60
+        perc_below_60 = param_ageGroup_dict['perc_patients_below_60_cases']
+        
+        # calculate icu rate of these two groups combined
+        icu_rate_combined = (perc_below_60 * icu_rate_below_60) + ((1-perc_below_60) * icu_rate_above_60)
+        
+        r =  r * icu_rate_combined
+    # if not, just have a single icu rate
+    else:
+        r = r * param_ageGroup_dict['ICU_rate_overall']
+
+        
+    
     # simulate the arrival date, save in which day it occurs
     arrival_times_days = np.array(simulate_arrivals(r, N0, K, T))
     which_day_arrival = np.array(list((map(int,arrival_times_days))))
@@ -313,7 +350,7 @@ def simulate_system_T_days(T,starting_ICU_capacity, total_ICU_capacity, prob_dea
         arrived_today[i_day] = total_arrived_today
         
         # get results for a day
-        result = simulate_system_day(arrival_times_day, ICU_capacity_today, total_ICU_capacity, prob_death_adm, prob_death_rej,param_ICU_time_dict, active_events, hours_day = 24)
+        result = simulate_system_day(arrival_times_day, ICU_capacity_today, total_ICU_capacity, prob_death_adm, prob_death_rej,param_ICU_time_dict,param_ageGroup_dict, active_events, hours_day = 24)
         
         # update the active vents for the next iteration
         active_events = {'A': [], 'D':list(np.array(result['current_active_departures']) - (i_day+1)) }

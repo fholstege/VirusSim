@@ -27,18 +27,27 @@ t = TicToc()
 
 ## First parameters: probability of death after admission and rejection  
 # taken from: https://stichting-nice.nl/covid-19-op-de-ic.jsp, first of april
-total_death_after_ICU = 6128
-total_alive_after_ICU = 2778
+total_death_after_ICU = 2278
+total_alive_after_ICU = 6128
 total_alive_after_ICU_but_in_hospital = 384
 prob_death_adm = total_death_after_ICU/(total_death_after_ICU + total_alive_after_ICU + total_alive_after_ICU_but_in_hospital)
+
 
 # based on the following paper: page 4 of https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7341703/pdf/10729_2020_Article_9511.pdf
 prob_death_rej = 0.9
 
 # Second set: how much people currently in the ICU (starting), how many currently infected, how many could be in total,  the K (how many people can be infected)
 # the following is based on RIVM ICU capacity 
-starting_ICU_capacity = 865
-N0 = 7000 * 7 # number of infected people at t = 0 - approx. number of cases in last two weeks
+ICU_capacity_taken_nonCovid = 500
+ICU_capacity_taken_Covid = 700
+starting_ICU_capacity = ICU_capacity_taken_Covid + ICU_capacity_taken_nonCovid
+
+# based on RIVM data, high and low capacity
+iICUCapacitySQ = 1600                              
+iICUCapacityHigh = 2400    
+                         
+# number of infected people at t = 0 - approx. number of cases in last two weeks
+N0 = 7000 * 7 
 
 # get the K
 population = 17500000
@@ -55,19 +64,12 @@ R_low = 1.01
 R_SQ = 1.06
 R_high = 1.11
 
-# ICU rate possibilities
-ICU_rate_low = 0.0248                              
-ICU_rate_SQ = 0.0348
 
 # generate the small r
 r_low = (R_low - 1) /T_c
 r_SQ = (R_SQ - 1)/T_c
 r_high = (R_high - 1)/T_c
 
-
-# icu capacity
-iICUCapacitySQ = 1150                               # FIND OUT
-iICUCapacityHigh = 1300                             # FIND OUT
 
 
 # get data on ICU stay
@@ -96,9 +98,22 @@ alpha, beta, loc, scale = beta_distribution.fit(distribution_ICU_stay)
 param_ICU_time_beta = {'alpha': alpha, 'beta': beta, 'loc': loc, 'scale': scale}
 param_ICU_time_gamma = {'scale': 1.66 , 'shape': 1/0.206}
 
+
+# define parameters for the age split
+param_ageGroup_split_60 = {'split_at_60': True,
+                  'perc_patients_below_60_ICU': 0.322,
+                  'perc_patients_below_60_cases': 0.85,
+                  'ICU_rate_below_60': 0.023,
+                  'ICU_rate_above_60': 0.28,
+                  'prob_death_adm_below_60': 0.129,
+                  'prob_death_adm_above_60': 0.398,
+                  'ICU_rate_overall': 0.062}
+
+
+
 # how many sims,for how many days
 n_sim = 10
-n_days = 30                                         
+n_days = 30
 
 
 # define all the possible parameters
@@ -108,7 +123,6 @@ parameters = {'prob_death_adm':[prob_death_adm],
               'total_ICU_capacity': [iICUCapacitySQ, iICUCapacityHigh],
               'K': [K],
               'N0': [N0],
-              'ICU_rate': [ICU_rate_low, ICU_rate_SQ],
               'r': [r_low, r_SQ, r_high]}
 
 # create the parameter grid
@@ -139,7 +153,6 @@ for i in range(len(vAlphabet)):
     # go through number of sims
     for j in range(n_sim):
         
-        r_scenario = parameters_scenario['r'] * parameters_scenario['ICU_rate']
         
         dResults['result_sim'+sName][j] = simulate_system_T_days(T = n_days,
                                                                  starting_ICU_capacity = parameters_scenario['starting_ICU_capacity'], 
@@ -147,9 +160,11 @@ for i in range(len(vAlphabet)):
                                                                  prob_death_adm = parameters_scenario['prob_death_adm'], 
                                                                  prob_death_rej = parameters_scenario['prob_death_rej'],
                                                                  param_ICU_time_dict=param_ICU_time_beta,
-                                                                 r = r_scenario,
+                                                                 param_ageGroup_dict=param_ageGroup_split_60,
+                                                                 r = parameters_scenario['r'],
                                                                  N0 = parameters_scenario['N0'],
-                                                                 K = parameters_scenario['K'])
+                                                                 K = parameters_scenario['K']
+                                                                )
 t.toc()
 
 
@@ -163,7 +178,6 @@ for i in vAlphabet:
             sData = vData[d] 
             dAverageResults['result_sim'+i][d] += (dResults['result_sim'+i][j][sData] / n_sim).reshape((1,n_days))
 
-### From here on not working anymore
 #plot the arrivals 
 for i in vAlphabet:
     plt.figure()
