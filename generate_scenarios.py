@@ -45,8 +45,10 @@ ICU_capacity_taken_Covid = 700
 starting_ICU_capacity = ICU_capacity_taken_Covid + ICU_capacity_taken_nonCovid
 
 # based on RIVM data, high and low capacity
-iICUCapacitySQ = 1600                              
-iICUCapacityHigh = 2400    
+iICUCapacityLow = 1400                              
+iICUCapacityMedium = 1700    
+iICUCapacityHigh = 2000    
+
                          
 # number of infected people at t = 0 - approx. number of cases in last two weeks
 N0 = 7000 * 7 
@@ -64,7 +66,7 @@ T_c = 5
 # Parameter settings: SQ (Status Quo), Low, Med, or High scenario
 R_low = 1.01
 R_SQ = 1.06
-R_high = 1.3
+R_high = 1.11
 
 
 # generate the small r
@@ -114,18 +116,14 @@ param_ICU_time_kde = {'kde':kde }
 # define parameters for the age split
 param_ageGroup_split_60 = {'split_at_60': True,
                   'perc_patients_below_60_ICU': 0.322,
-                  'perc_patients_below_60_cases': 0.85,
                   'ICU_rate_below_60': 0.023,
                   'ICU_rate_above_60': 0.28,
                   'prob_death_adm_below_60': 0.129,
                   'prob_death_adm_above_60': 0.398,
                   'ICU_rate_overall': 0.062}
 
-
-
-(param_ageGroup_split_60['ICU_rate_below_60'] *0.9)/param_ageGroup_split_60['ICU_rate_overall']
-
-
+perc_patients_below_60_cases_sq = 0.85
+perc_patients_below_60_cases_improve = 0.9
 
 
 # how many sims,for how many days
@@ -137,10 +135,12 @@ n_days = 30
 parameters = {'prob_death_adm':[prob_death_adm],
               'prob_death_rej':[ prob_death_rej],
               'starting_ICU_capacity': [starting_ICU_capacity],
-              'total_ICU_capacity': [iICUCapacitySQ], #iICUCapacityHigh],
+              'total_ICU_capacity': [iICUCapacityLow, iICUCapacityMedium, iICUCapacityHigh], 
               'K': [K],
               'N0': [N0],
-              'r': [r_low, r_SQ, r_high]}
+              'r': [r_low, r_SQ, r_high],
+              'perc_cases_below60':[perc_patients_below_60_cases_sq, perc_patients_below_60_cases_improve]
+              }
 
 # create the parameter grid
 param_grid = list(ParameterGrid(parameters))
@@ -179,6 +179,7 @@ for i in range(len(vAlphabet)):
                                                                  param_ICU_time_dict=param_ICU_time_kde,
                                                                  ICU_time_distribution = 'kde',
                                                                  param_ageGroup_dict=param_ageGroup_split_60,
+                                                                 perc_cases_below60=parameters_scenario['perc_cases_below60'] ,
                                                                  r = parameters_scenario['r'],
                                                                  N0 = parameters_scenario['N0'],
                                                                  K = parameters_scenario['K']

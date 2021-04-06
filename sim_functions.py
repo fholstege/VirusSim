@@ -102,6 +102,54 @@ def sample_patient_ICU_time_Beta(alpha, beta, loc, scale):
     sample = beta_distribution.rvs(a=alpha,b=beta,size = 1, loc = loc, scale = scale)
     
     return sample
+
+
+def calc_overall_ICU_rate(perc_cases_below60, ICU_rate_below60, ICU_rate_above60):
+    """
+    
+
+    Parameters
+    ----------
+    perc_cases_below60 : float
+        % of cases where people are below the age of 60.
+    ICU_rate_below60 : float
+        % of cases that go to the ICU, for people below 60.
+    ICU_rate_above60 : float
+        % of cases that go the ICU, for people of 60 and above.
+
+    Returns
+    -------
+    perc_ICU_overall : float
+        % of cases that go to the ICU.
+
+    """
+    perc_ICU_overall = (perc_cases_below60 *ICU_rate_below60) + ((1-perc_cases_below60)*ICU_rate_above60)
+    
+    return perc_ICU_overall
+
+def calc_perc_below60_ICU(perc_cases_below60, ICU_rate_below60, ICU_rate_overall):
+    """
+    Using bayes rule, calculates the percentage of people in the ICU below 60 with Covid    
+    
+    Parameters
+    ----------
+    perc_cases_below60 : float
+        % of cases with people below 60.
+    ICU_rate_below60 : float
+        % of cases of people below 60 that go to the ICU.
+    ICU_rate_overall : float
+        % of cases that go to the ICU.
+
+    Returns
+    -------
+    perc_ICU_below60 : float
+        percentage of the ICU patients with covid that is below 60.
+
+    """
+
+    perc_ICU_below60 = (ICU_rate_below60 *perc_cases_below60)/ICU_rate_overall
+    
+    return perc_ICU_below60
     
 
 def simulate_system_day(arrival_times, current_ICU_capacity, total_ICU_capacity, prob_death_adm, prob_death_rej, param_ICU_time_dict,ICU_time_distribution, param_ageGroup_dict, active_events = None,hours_day = 24):
@@ -277,7 +325,7 @@ def simulate_system_day(arrival_times, current_ICU_capacity, total_ICU_capacity,
             
     return dict_results
 
-def simulate_system_T_days(T,starting_ICU_capacity, total_ICU_capacity, prob_death_adm, prob_death_rej, param_ICU_time_dict,ICU_time_distribution, param_ageGroup_dict, r, N0, K):
+def simulate_system_T_days(T,starting_ICU_capacity, total_ICU_capacity, prob_death_adm, prob_death_rej, param_ICU_time_dict,ICU_time_distribution, param_ageGroup_dict,perc_cases_below60, r, N0, K):
     """
     
 
@@ -326,16 +374,18 @@ def simulate_system_T_days(T,starting_ICU_capacity, total_ICU_capacity, prob_dea
     if param_ageGroup_dict['split_at_60']:
         
         # define the ICU rate for below and above 60
-        icu_rate_below_60 = param_ageGroup_dict['ICU_rate_below_60']
-        icu_rate_above_60 = param_ageGroup_dict['ICU_rate_above_60']
-        
-        # using the percentage of people below 60
-        perc_below_60 = param_ageGroup_dict['perc_patients_below_60_cases']
-        
+        ICU_rate_below60 = param_ageGroup_dict['ICU_rate_below_60']
+        ICU_rate_above60 = param_ageGroup_dict['ICU_rate_above_60']
+ 
         # calculate icu rate of these two groups combined
-        icu_rate_combined = (perc_below_60 * icu_rate_below_60) + ((1-perc_below_60) * icu_rate_above_60)
+        ICU_rate_combined = calc_overall_ICU_rate(perc_cases_below60, ICU_rate_below60, ICU_rate_above60)
         
-        r =  r * icu_rate_combined
+        # adjust r basedon icu rate
+        r =  r * ICU_rate_combined
+        
+        # adjust the ICU rate of people below 60
+        param_ageGroup_dict['perc_patients_below_60_ICU']  = calc_perc_below60_ICU(perc_cases_below60, ICU_rate_below60, ICU_rate_above60)
+        
     # if not, just have a single icu rate
     else:
         r = r * param_ageGroup_dict['ICU_rate_overall']
@@ -359,19 +409,12 @@ def simulate_system_T_days(T,starting_ICU_capacity, total_ICU_capacity, prob_dea
         
         # get how many arrived, and save
         total_arrived_today = len(arrival_times_day)
-        print("----")
-        print("day: ", i_day)
-        print("Total arrived today: ", total_arrived_today)
-        
-        
+     
         arrived_today[i_day] = total_arrived_today
         
         # get results for a day
         result = simulate_system_day(arrival_times_day, ICU_capacity_today, total_ICU_capacity, prob_death_adm, prob_death_rej,param_ICU_time_dict,ICU_time_distribution,param_ageGroup_dict, active_events,hours_day = 24)
-        
-        print("Total departed today: ", result['total_left_ICU'])
-        print("Current n of patients waiting to depart: ", len(result['current_active_departures']))
-        
+  
         # update the active vents for the next iteration
         active_events = {'A': [], 'D':list(np.array(result['current_active_departures']) - (i_day+1)) }
         
