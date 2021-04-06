@@ -13,6 +13,7 @@ Created on Sat Apr  3 15:23:07 2021
 """
 import numpy as np
 from sim_functions import simulate_system_T_days, sample_patient_ICU_time_gamma
+from visual_functions import calc_CI_stats_variable_scenario, generate_plots
 import pandas as pd
 from pytictoc import TicToc
 import string
@@ -75,7 +76,6 @@ r_SQ = (R_SQ - 1)/T_c
 r_high = (R_high - 1)/T_c
 
 
-
 # get data on ICU stay
 data_ICU_stay = pd.read_excel('raw_IC_data.xlsx')
 
@@ -94,8 +94,6 @@ for index, row in data_ICU_stay.iterrows():
  
 # flatten list of lists
 distribution_ICU_stay=  [val for sublist in distribution_ICU_stay for val in sublist]
-plt.hist(distribution_ICU_stay, bins = 60)
-
 
 # get distributions based on the historical data
 alpha_b, beta_b,loc_b, scale_b = beta_distribution.fit(distribution_ICU_stay)
@@ -121,13 +119,13 @@ param_ageGroup_split_60 = {'split_at_60': True,
                   'prob_death_adm_below_60': 0.129,
                   'prob_death_adm_above_60': 0.398,
                   'ICU_rate_overall': 0.062}
-
-perc_patients_below_60_cases_sq = 0.85
-perc_patients_below_60_cases_improve = 0.9
+# % of cases
+perc_cases_below60_sq = 0.85
+perc_cases_below60_improve = 0.9
 
 
 # how many sims,for how many days
-n_sim = 1
+n_sim = 10
 n_days = 30
 
 
@@ -139,7 +137,7 @@ parameters = {'prob_death_adm':[prob_death_adm],
               'K': [K],
               'N0': [N0],
               'r': [r_low, r_SQ, r_high],
-              'perc_cases_below60':[perc_patients_below_60_cases_sq, perc_patients_below_60_cases_improve]
+              'perc_cases_below60':[perc_cases_below60_sq, perc_cases_below60_improve]
               }
 
 # create the parameter grid
@@ -154,6 +152,7 @@ t.tic()
 vAlphabet = list(string.ascii_uppercase)[:len(param_grid)]
 
 dResults = {}
+dParam ={}
 
 # calculate for each scenario
 for i in range(len(vAlphabet)):
@@ -184,38 +183,60 @@ for i in range(len(vAlphabet)):
                                                                  N0 = parameters_scenario['N0'],
                                                                  K = parameters_scenario['K']
                                                                 )
+        
+    dParam['param_sim'+sName] = parameters_scenario
 t.toc()
 
 
+   
 # save average results
-dAverageResults = {}
+dOverallResults = {}
+variables = ['total_death', 'total_death_after_admission', 'total_death_after_rejection', 'arrivals_per_day']
 
-vData = ['total_death', 'total_death_after_admission', 'total_death_after_rejection', 'arrivals_per_day']
 
+for scenario in dResults.keys():
     
+   # get the letter of the scenario 
+   letter_scenario = scenario[-1]
+   
+   # save here all the results per scenario
+   total_death_results = [None]*n_sim
+   total_death_after_admission_results = [None]*n_sim
+   total_death_after_rejection_results = [None]*n_sim
+   arrivals_per_day_results = [None]*n_sim
+   
+   # get results per scenario
+   result_scenario = dResults[scenario]     
+       
+   for i_sim in range(0, n_sim):
+      
+       # add to respecitve lists
+      total_death_results[i_sim] = result_scenario[i_sim]['total_death']
+      total_death_after_admission_results[i_sim] = result_scenario[i_sim]['total_death_after_admission']
+      total_death_after_rejection_results[i_sim] = result_scenario[i_sim]['total_death_after_rejection']
+      arrivals_per_day_results[i_sim] = result_scenario[i_sim]['arrivals_per_day']
+       
+   
+   # get results in dataframe, ready to calculate confidence intervals 
+   df_results_total_death = pd.DataFrame(total_death_results).transpose()
+   df_results_total_death_after_admission = pd.DataFrame(total_death_after_admission_results).transpose()
+   df_results_total_death_after_rejection = pd.DataFrame(total_death_after_rejection_results).transpose()
+   df_results_arrivals_per_day = pd.DataFrame(arrivals_per_day_results).transpose()
+   
+   # get confidence interval per stat
+   df_CI_stats_total_death = calc_CI_stats_variable_scenario(df_results_total_death, 'total_death', letter_scenario)
+   df_CI_stats_total_death_after_admission = calc_CI_stats_variable_scenario(df_results_total_death_after_admission, 'total_death_after_admission', letter_scenario)
+   df_CI_stats_total_death_after_rejection = calc_CI_stats_variable_scenario(df_results_total_death_after_rejection, 'total_death_after_rejection', letter_scenario)
+   df_CI_stats_arrivals_per_day = calc_CI_stats_variable_scenario(df_results_arrivals_per_day, 'arrivals_per_day', letter_scenario)
 
+   # add to dict of overall results 
+   dOverallResults[scenario] = {'total_death_overall':df_CI_stats_total_death,
+                                 'total_death_after_admission_overall':df_CI_stats_total_death_after_admission, 
+                                 'total_death_after_rejection_overall': df_CI_stats_total_death_after_rejection,
+                                 'arrivals_per_day_overall': df_CI_stats_arrivals_per_day} 
+       
+      
+       
 
+generate_plots(dOverallResults, dParam,['arrivals_per_day','total_death','total_death_after_admission','total_death_after_rejection', ], CI = False)
 
-
-
-
-for i in vAlphabet: 
-    dAverageResults['result_sim'+i] = [[np.zeros(n_days)], [np.zeros(n_days)], [np.zeros(n_days)], [np.zeros(n_days)]]
-    for j in range(n_sim):        
-        for d in range(4):
-            sData = vData[d] 
-            dAverageResults['result_sim'+i][d] += (dResults['result_sim'+i][j][sData] / n_sim).reshape((1,n_days))
-
-dAverageResults
-#plot the arrivals 
-for i in vAlphabet:
-    plt.figure()
-    plt.title(str('Scenario '+i))
-    plt.plot(range(1,n_days+1), dAverageResults['result_sim'+i][3].reshape((n_days,)), label = str('Daily New Arrivals at ICU'))
-    
-    # plot the deaths
-    plt.plot(range(1,n_days+1), dAverageResults['result_sim'+i][0].reshape((n_days,)), label = 'Total death')
-    plt.plot(range(1,n_days+1), dAverageResults['result_sim'+i][1].reshape((n_days,)), label = 'Death after admission')
-    plt.plot(range(1,n_days+1), dAverageResults['result_sim'+i][2].reshape((n_days,)), label = 'Death after rejection')
-    plt.legend()
-    plt.savefig(str('Scenario'+i+'.eps'))
