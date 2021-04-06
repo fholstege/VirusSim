@@ -12,13 +12,15 @@ Created on Sat Apr  3 15:23:07 2021
 @author: flori
 """
 import numpy as np
-from sim_functions import simulate_system_T_days
+from sim_functions import simulate_system_T_days, sample_patient_ICU_time_gamma
 import pandas as pd
 from pytictoc import TicToc
 import string
 import matplotlib.pyplot as plt
 from sklearn.model_selection import ParameterGrid
 from scipy.stats import beta as beta_distribution
+from scipy.stats import gamma as gamma_distribution
+
 import scipy.stats as stats    
 
 
@@ -62,7 +64,7 @@ T_c = 5
 # Parameter settings: SQ (Status Quo), Low, Med, or High scenario
 R_low = 1.01
 R_SQ = 1.06
-R_high = 1.11
+R_high = 1.3
 
 
 # generate the small r
@@ -90,13 +92,16 @@ for index, row in data_ICU_stay.iterrows():
  
 # flatten list of lists
 distribution_ICU_stay=  [val for sublist in distribution_ICU_stay for val in sublist]
+plt.hist(distribution_ICU_stay, bins = 60)
 
 # get distributions based on the historical data
-alpha, beta, loc, scale = beta_distribution.fit(distribution_ICU_stay)
+alpha, beta,loc, scale = beta_distribution.fit(distribution_ICU_stay)
 
 # get parameters for the beta distribution, gamma distribution
 param_ICU_time_beta = {'alpha': alpha, 'beta': beta, 'loc': loc, 'scale': scale}
 param_ICU_time_gamma = {'scale': 1.66 , 'shape': 1/0.206}
+
+
 
 
 # define parameters for the age split
@@ -112,18 +117,18 @@ param_ageGroup_split_60 = {'split_at_60': True,
 
 
 # how many sims,for how many days
-n_sim = 10
-n_days = 30
+n_sim = 100
+n_days = 60
 
 
 # define all the possible parameters
 parameters = {'prob_death_adm':[prob_death_adm],
               'prob_death_rej':[ prob_death_rej],
               'starting_ICU_capacity': [starting_ICU_capacity],
-              'total_ICU_capacity': [iICUCapacitySQ, iICUCapacityHigh],
+              'total_ICU_capacity': [iICUCapacitySQ], #iICUCapacityHigh],
               'K': [K],
               'N0': [N0],
-              'r': [r_low, r_SQ, r_high]}
+              'r': [r_low, r_SQ, r_high]} #[r_low, r_SQ, r_high]}
 
 # create the parameter grid
 param_grid = list(ParameterGrid(parameters))
@@ -159,7 +164,8 @@ for i in range(len(vAlphabet)):
                                                                  total_ICU_capacity =parameters_scenario['total_ICU_capacity'], 
                                                                  prob_death_adm = parameters_scenario['prob_death_adm'], 
                                                                  prob_death_rej = parameters_scenario['prob_death_rej'],
-                                                                 param_ICU_time_dict=param_ICU_time_beta,
+                                                                 param_ICU_time_dict=param_ICU_time_gamma,
+                                                                 ICU_time_distribution = 'gamma',
                                                                  param_ageGroup_dict=param_ageGroup_split_60,
                                                                  r = parameters_scenario['r'],
                                                                  N0 = parameters_scenario['N0'],
@@ -170,7 +176,16 @@ t.toc()
 
 # save average results
 dAverageResults = {}
+
 vData = ['total_death', 'total_death_after_admission', 'total_death_after_rejection', 'arrivals_per_day']
+
+    
+
+
+
+
+
+
 for i in vAlphabet: 
     dAverageResults['result_sim'+i] = [[np.zeros(n_days)], [np.zeros(n_days)], [np.zeros(n_days)], [np.zeros(n_days)]]
     for j in range(n_sim):        
@@ -178,6 +193,7 @@ for i in vAlphabet:
             sData = vData[d] 
             dAverageResults['result_sim'+i][d] += (dResults['result_sim'+i][j][sData] / n_sim).reshape((1,n_days))
 
+dAverageResults
 #plot the arrivals 
 for i in vAlphabet:
     plt.figure()

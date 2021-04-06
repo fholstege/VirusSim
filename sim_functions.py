@@ -97,7 +97,7 @@ def sample_patient_ICU_time_Beta(alpha, beta, loc, scale):
     return sample
     
 
-def simulate_system_day(arrival_times, current_ICU_capacity, total_ICU_capacity, prob_death_adm, prob_death_rej, param_ICU_time_dict, param_ageGroup_dict, ICU_time_distribution = 'beta',active_events = None,hours_day = 24):
+def simulate_system_day(arrival_times, current_ICU_capacity, total_ICU_capacity, prob_death_adm, prob_death_rej, param_ICU_time_dict,ICU_time_distribution, param_ageGroup_dict, active_events = None,hours_day = 24):
     """
     
 
@@ -156,7 +156,6 @@ def simulate_system_day(arrival_times, current_ICU_capacity, total_ICU_capacity,
     # go over each arrival
     while simulate_day:
         
-                
         if not active_events['A'] and not active_events['D']:
             break 
         elif not active_events['D']:
@@ -265,7 +264,7 @@ def simulate_system_day(arrival_times, current_ICU_capacity, total_ICU_capacity,
             
     return dict_results
 
-def simulate_system_T_days(T,starting_ICU_capacity, total_ICU_capacity, prob_death_adm, prob_death_rej, param_ICU_time_dict, param_ageGroup_dict, r, N0, K):
+def simulate_system_T_days(T,starting_ICU_capacity, total_ICU_capacity, prob_death_adm, prob_death_rej, param_ICU_time_dict,ICU_time_distribution, param_ageGroup_dict, r, N0, K):
     """
     
 
@@ -350,7 +349,8 @@ def simulate_system_T_days(T,starting_ICU_capacity, total_ICU_capacity, prob_dea
         arrived_today[i_day] = total_arrived_today
         
         # get results for a day
-        result = simulate_system_day(arrival_times_day, ICU_capacity_today, total_ICU_capacity, prob_death_adm, prob_death_rej,param_ICU_time_dict,param_ageGroup_dict, active_events, hours_day = 24)
+        result = simulate_system_day(arrival_times_day, ICU_capacity_today, total_ICU_capacity, prob_death_adm, prob_death_rej,param_ICU_time_dict,ICU_time_distribution,param_ageGroup_dict, active_events,hours_day = 24)
+        
         
         # update the active vents for the next iteration
         active_events = {'A': [], 'D':list(np.array(result['current_active_departures']) - (i_day+1)) }
