@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 from sklearn.model_selection import ParameterGrid
 from scipy.stats import beta as beta_distribution
 from scipy.stats import gamma as gamma_distribution
-
+from sklearn.neighbors import KernelDensity
 import scipy.stats as stats    
 
 
@@ -36,7 +36,7 @@ prob_death_adm = total_death_after_ICU/(total_death_after_ICU + total_alive_afte
 
 
 # based on the following paper: page 4 of https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7341703/pdf/10729_2020_Article_9511.pdf
-prob_death_rej = 0.9
+prob_death_rej = 0.99
 
 # Second set: how much people currently in the ICU (starting), how many currently infected, how many could be in total,  the K (how many people can be infected)
 # the following is based on RIVM ICU capacity 
@@ -94,13 +94,20 @@ for index, row in data_ICU_stay.iterrows():
 distribution_ICU_stay=  [val for sublist in distribution_ICU_stay for val in sublist]
 plt.hist(distribution_ICU_stay, bins = 60)
 
+
 # get distributions based on the historical data
-alpha, beta,loc, scale = beta_distribution.fit(distribution_ICU_stay)
+alpha_b, beta_b,loc_b, scale_b = beta_distribution.fit(distribution_ICU_stay)
+
+# fit a kernel density
+X_kernel = np.array(distribution_ICU_stay).reshape(-1,1)
+kde = KernelDensity(kernel='gaussian', bandwidth=1.5).fit(X_kernel)
+
+
 
 # get parameters for the beta distribution, gamma distribution
-param_ICU_time_beta = {'alpha': alpha, 'beta': beta, 'loc': loc, 'scale': scale}
-param_ICU_time_gamma = {'scale': 1.66 , 'shape': 1/0.206}
-
+param_ICU_time_beta = {'alpha': alpha_b, 'beta': beta_b, 'loc': loc_b, 'scale': scale_b}
+param_ICU_time_gamma = {'scale': 1.66 , 'shape': 1/0.206} # informed by paper
+param_ICU_time_kde = {'kde':kde }
 
 
 
@@ -116,9 +123,14 @@ param_ageGroup_split_60 = {'split_at_60': True,
 
 
 
+(param_ageGroup_split_60['ICU_rate_below_60'] *0.9)/param_ageGroup_split_60['ICU_rate_overall']
+
+
+
+
 # how many sims,for how many days
-n_sim = 100
-n_days = 60
+n_sim = 1
+n_days = 30
 
 
 # define all the possible parameters
@@ -128,14 +140,14 @@ parameters = {'prob_death_adm':[prob_death_adm],
               'total_ICU_capacity': [iICUCapacitySQ], #iICUCapacityHigh],
               'K': [K],
               'N0': [N0],
-              'r': [r_low, r_SQ, r_high]} #[r_low, r_SQ, r_high]}
+              'r': [r_low, r_SQ, r_high]}
 
 # create the parameter grid
 param_grid = list(ParameterGrid(parameters))
 
 # parameter grid
 df_param_grid = pd.DataFrame(param_grid)
-
+df_param_grid
 
 
 t.tic()
@@ -164,8 +176,8 @@ for i in range(len(vAlphabet)):
                                                                  total_ICU_capacity =parameters_scenario['total_ICU_capacity'], 
                                                                  prob_death_adm = parameters_scenario['prob_death_adm'], 
                                                                  prob_death_rej = parameters_scenario['prob_death_rej'],
-                                                                 param_ICU_time_dict=param_ICU_time_gamma,
-                                                                 ICU_time_distribution = 'gamma',
+                                                                 param_ICU_time_dict=param_ICU_time_kde,
+                                                                 ICU_time_distribution = 'kde',
                                                                  param_ageGroup_dict=param_ageGroup_split_60,
                                                                  r = parameters_scenario['r'],
                                                                  N0 = parameters_scenario['N0'],

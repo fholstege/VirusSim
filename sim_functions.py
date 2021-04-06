@@ -45,6 +45,13 @@ def select_upcoming_event(dict_active_events):
     
     return upcoming_event
 
+
+def sample_patient_ICU_time_KDE(kde):
+    
+    sample = kde.sample(n_samples =1)
+    
+    return sample
+
 def sample_patient_ICU_time_gamma(shape, scale):
     """
     
@@ -145,7 +152,7 @@ def simulate_system_day(arrival_times, current_ICU_capacity, total_ICU_capacity,
     total_rejected_hospital = 0
     
     # set the current time to 0, and get total minutes per day
-    current_time = 0
+    total_left_ICU = 0
         
     # get arrivals 
     active_events['A'] = arrival_times
@@ -200,6 +207,8 @@ def simulate_system_day(arrival_times, current_ICU_capacity, total_ICU_capacity,
                     elif ICU_time_distribution == 'beta':
                         time_in_ICU = sample_patient_ICU_time_Beta(mean= param_ICU_time_dict['alpha'], var=param_ICU_time_dict['beta'],
                                                                min_distribution=param_ICU_time_dict['loc'], max_distribution=param_ICU_time_dict['scale'])
+                    elif ICU_time_distribution == 'kde':
+                        time_in_ICU = sample_patient_ICU_time_KDE(param_ICU_time_dict['kde'])
                     
                     # define moment of departure of this event
                     time_departure = upcoming_event_time + time_in_ICU
@@ -223,6 +232,9 @@ def simulate_system_day(arrival_times, current_ICU_capacity, total_ICU_capacity,
             
             # if a patient departs
             elif upcoming_event == 'D':
+                
+                # record if left
+                total_left_ICU += 1
                 
                 # remove a person from the ICU
                 current_ICU_capacity -= 1
@@ -255,6 +267,7 @@ def simulate_system_day(arrival_times, current_ICU_capacity, total_ICU_capacity,
     total_deaths_today = total_deaths_after_admission + total_deaths_after_rejection
     
     dict_results = {'total_death': total_deaths_today,
+                    'total_left_ICU': total_left_ICU,
                     'total_death_after_admission': total_deaths_after_admission,
                     'total_death_after_rejection': total_deaths_after_rejection,
                     'total_admitted_hospital': total_admitted_hospital, 
@@ -346,11 +359,18 @@ def simulate_system_T_days(T,starting_ICU_capacity, total_ICU_capacity, prob_dea
         
         # get how many arrived, and save
         total_arrived_today = len(arrival_times_day)
+        print("----")
+        print("day: ", i_day)
+        print("Total arrived today: ", total_arrived_today)
+        
+        
         arrived_today[i_day] = total_arrived_today
         
         # get results for a day
         result = simulate_system_day(arrival_times_day, ICU_capacity_today, total_ICU_capacity, prob_death_adm, prob_death_rej,param_ICU_time_dict,ICU_time_distribution,param_ageGroup_dict, active_events,hours_day = 24)
         
+        print("Total departed today: ", result['total_left_ICU'])
+        print("Current n of patients waiting to depart: ", len(result['current_active_departures']))
         
         # update the active vents for the next iteration
         active_events = {'A': [], 'D':list(np.array(result['current_active_departures']) - (i_day+1)) }
