@@ -54,9 +54,8 @@ def generate_plots(dOverallResults,dParam,variables, save=False, CI=False, n_day
             plt.plot(range(1,n_days+1), df_variable_overall['mean_'+variable +'_' +letter_scenario], label = variable)
             
             if CI:
-                plt.plot(range(1,n_days+1), df_variable_overall['lower_'+variable+'_' +letter_scenario], '--', color = 'black')
-                plt.plot(range(1,n_days+1), df_variable_overall['upper_'+variable+'_' +letter_scenario], '--', color = 'black')
-            
+                plt.fill_between(range(1,n_days+1), df_variable_overall['lower_'+variable+'_' +letter_scenario],df_variable_overall['upper_'+variable+'_' +letter_scenario], alpha = 0.2)
+               
         
         
         plt.gcf().text(0.02, 1,'Total ICU capacity: '+ str(parameters_scenario['total_ICU_capacity']) , fontsize=11)

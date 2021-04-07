@@ -24,7 +24,6 @@ from scipy.stats import gamma as gamma_distribution
 from sklearn.neighbors import KernelDensity
 import scipy.stats as stats    
 
-
 # create instance of class
 t = TicToc() 
 
@@ -125,7 +124,7 @@ perc_cases_below60_improve = 0.9
 
 
 # how many sims,for how many days
-n_sim = 10
+n_sim = 1000
 n_days = 30
 
 
